@@ -2,7 +2,8 @@ import sys, types
 from orca import extension_loader
 ld = extension_loader.get_loader()
 sys.modules['orca_user_extension']=types.ModuleType('orca_user_extension'); sys.modules['orca_user_extension'].__path__=[]
-path='/home/student/Projects/orca-telegram-access/telegram_access'
+import os
+path=os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'telegram_access')
 from orca import debug; debug.debugLevel=debug.LEVEL_WARNING; debug.debugFile=sys.stderr
 print('meta', ld.get_metadata(path+'/__init__.py'))
 ext = ld._load_from_file(path, 'telegram_access')
