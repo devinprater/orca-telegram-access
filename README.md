@@ -30,7 +30,7 @@ Then restart Orca. Roll back with `orca --revoke-extension telegram_access` and 
 
 - Telegram draws some popups itself and does not expose them to AT-SPI at all: the chat (three-dot) menu, the bot command list behind the "Menu" button, and the emoji/sticker/GIF tabs and grid. This extension cannot label what is not in the accessibility tree.
 - Built-in labels and the drawer detection match English Telegram names.
-- Written and checked against Telegram Desktop 7.3.1 and Orca 51.0 on NixOS. Receiving a real message end to end with live speech has not been verified.
+- Written and checked against Telegram Desktop 7.3.1 and Orca 51.0 on NixOS. Incoming-message speech has been confirmed with a real message on a live Orca; the "read only" fix and the button labels were verified against the live accessibility tree.
 
 ## Tests
 
