@@ -19,6 +19,7 @@ def _load(name):
 
 # Load the pure modules directly so the package __init__ (which needs Orca) is not run.
 messages = _load("messages")
+deletions = _load("deletions")
 labels = _load("labels")
 
 INCOMING = ("Sarah Cat\nIn reply to Devin Prater: ‎⁨/new⁩\n"
@@ -91,6 +92,36 @@ class Diff(unittest.TestCase):
         names = [str(i) for i in range(100)]
         self.assertEqual(messages.new_items("98", names), ["99"])
         self.assertIsNone(messages.new_items("2", names))
+
+
+class Backspace(unittest.TestCase):
+    def test_deleted_text(self):
+        self.assertEqual(deletions.deleted_text("ab ", "ab", 2, 1), " ")
+        self.assertEqual(deletions.deleted_text("ab", "a", 1, 1), "b")
+        self.assertEqual(deletions.deleted_text("hello world", "hello ", 6, 5), "world")
+        self.assertIsNone(deletions.deleted_text("ab", "xy", 1, 1))   # snapshot out of date
+        self.assertIsNone(deletions.deleted_text("ab", "a", 5, 1))
+
+    def test_tracker_reports_real_character_once(self):
+        now = [0.0]
+        tracker = deletions.DeletionTracker(clock=lambda: now[0])
+        tracker.observe("ab")
+        tracker.on_delete("a", 1, 1)
+        self.assertEqual(tracker.take(), "b")
+        self.assertEqual(tracker.take(), "")          # only once
+        tracker.on_delete("", 0, 1)
+        self.assertEqual(tracker.take(), "a")         # snapshot kept up to date
+
+    def test_stale_or_unknown_deletions_are_not_reported(self):
+        now = [0.0]
+        tracker = deletions.DeletionTracker(clock=lambda: now[0])
+        tracker.observe("ab")
+        tracker.on_delete("a", 1, 1)
+        now[0] = 5.0
+        self.assertEqual(tracker.take(), "")          # too old
+        fresh = deletions.DeletionTracker(clock=lambda: now[0])
+        fresh.on_delete("x", 0, 1)                    # no snapshot yet
+        self.assertEqual(fresh.take(), "")
 
 
 class Node:

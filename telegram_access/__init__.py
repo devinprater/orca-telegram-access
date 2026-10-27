@@ -17,11 +17,11 @@ gi.require_version("Atspi", "2.0")
 # pylint: disable=wrong-import-position
 from gi.repository import Atspi, GLib
 
-from orca import debug, keybindings, object_properties
+from orca import debug, keybindings, object_properties, presentation_manager
 from orca.command import Command, KeyboardCommand
 from orca.extension import Extension, ExtensionPreference, SpeechOutputResult
 
-from . import labels, messages
+from . import deletions, labels, messages
 
 APP_NAME = "TelegramDesktop"
 POLL_MS = 700
@@ -34,6 +34,7 @@ SETTING_WHEN = "announce-when"
 SETTING_MAX_CHARS = "max-characters"
 SETTING_CLEAN = "clean-message-speech"
 SETTING_LABELS = "label-unnamed-controls"
+SETTING_BACKSPACE = "fix-backspace"
 
 
 def _log(*tokens: object) -> None:
@@ -65,6 +66,9 @@ class TelegramAccess(Extension):
         self._last_discovery = 0.0
         self._last_incoming = ""
         self._session_muted = False
+        self._tracker = deletions.DeletionTracker()
+        self._text_listener = None
+        self._telegram_running = False
 
     # -- lifecycle -------------------------------------------------------
 
@@ -83,6 +87,15 @@ class TelegramAccess(Extension):
     def _start(self) -> None:
         if not self._timer:
             self._timer = GLib.timeout_add(POLL_MS, self._poll)
+        if self._text_listener is None:
+            self._text_listener = Atspi.EventListener.new(self._on_text_event)
+            for event_type in (
+                "object:text-changed:insert",
+                "object:text-changed:delete",
+                "object:text-caret-moved",
+                "object:state-changed:focused",
+            ):
+                self._text_listener.register(event_type)
 
     def _stop(self) -> None:
         if self._timer:
@@ -90,6 +103,15 @@ class TelegramAccess(Extension):
             self._timer = 0
         self._list = None
         self._last_name = None
+        if self._text_listener is not None:
+            for event_type in (
+                "object:text-changed:insert",
+                "object:text-changed:delete",
+                "object:text-caret-moved",
+                "object:state-changed:focused",
+            ):
+                self._text_listener.deregister(event_type)
+            self._text_listener = None
 
     # -- settings --------------------------------------------------------
 
@@ -116,6 +138,9 @@ class TelegramAccess(Extension):
             ),
             ExtensionPreference.boolean(
                 SETTING_CLEAN, "Tidy how Telegram messages and chats are read", True
+            ),
+            ExtensionPreference.boolean(
+                SETTING_BACKSPACE, "Speak the character Backspace deletes in Telegram", True
             ),
             ExtensionPreference.boolean(
                 SETTING_LABELS, "Say something useful for Telegram buttons without a name", True
@@ -192,11 +217,53 @@ class TelegramAccess(Extension):
         self.controller.present_message_internal(f"{label}. Recorded for labeling.")
         return True
 
+    # -- Backspace in text fields ---------------------------------------
+
+    def _on_text_event(self, event) -> None:
+        """Tracks Telegram text fields so Backspace can say what it deleted."""
+
+        if not self._telegram_running:
+            return
+        try:
+            source = event.source
+            if source is None or not _is_telegram(source):
+                return
+            if source.get_role_name() != "text":
+                return
+            current = Atspi.Text.get_text(source, 0, -1)
+            if event.type.startswith("object:text-changed:delete"):
+                self._tracker.on_delete(current, event.detail1, event.detail2)
+            else:
+                self._tracker.observe(current)
+        except Exception as error:  # pylint: disable=broad-exception-caught
+            _log("text event failed:", error)
+
+    def _backspace_result(self, text):
+        """Replaces Telegram's bogus "space" with the character really deleted."""
+
+        removed = self._tracker.take()
+        if not removed or removed == " ":
+            return None
+        manager = presentation_manager.get_manager()
+        if len(removed) == 1:
+            manager.speak_character(removed)
+        else:
+            manager.speak_message(removed)
+        return SpeechOutputResult.consume_output()
+
     # -- speech hook -----------------------------------------------------
 
     def on_speech_output(self, output):
         obj = getattr(output, "obj", None)
         text = getattr(output, "text", "")
+        if text == " " and self._telegram_running and self._get(SETTING_BACKSPACE, True):
+            try:
+                result = self._backspace_result(text)
+            except Exception as error:  # pylint: disable=broad-exception-caught
+                _log("backspace fix failed:", error)
+                result = None
+            if result is not None:
+                return result
         if obj is None or not isinstance(text, str) or not text:
             return None
         if self._get(SETTING_CLEAN, True) and object_properties.STATE_READ_ONLY_SPEECH in text:
@@ -321,6 +388,7 @@ class TelegramAccess(Extension):
             return None
         self._last_discovery = now
         app = self._find_app()
+        self._telegram_running = app is not None
         if app is not None:
             self._list = self._find_list(app)
         return self._list

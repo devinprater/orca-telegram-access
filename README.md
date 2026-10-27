@@ -6,6 +6,7 @@ Telegram already exposes most of its interface through AT-SPI. This extension fi
 
 - **Speaks incoming messages** in the open chat (polls the `Messages` list every 0.7 s; received messages only, not your own). By default only while Telegram is the active window, since Telegram sends a desktop notification otherwise. Automatic speech is cut at 500 characters (configurable); `Orca+Alt+R` reads the last one in full.
 - **Tidies speech**: strips invisible direction marks, reads "Seen / Me" as "You, seen", and drops the spurious "read only" Orca announces for Telegram's text-field wrapper nodes (the message box and every Search field).
+- **Fixes Backspace**: Telegram reports every deleted character as a space, so Orca said "space" for each Backspace. The extension tracks the field's text and speaks the character (or word, for Ctrl+Backspace) that was really deleted.
 - **Labels unnamed buttons**: profile picture and account header in the main menu, and the search icon in the emoji/sticker/GIF panel. Other unnamed buttons are read as "Unlabeled, next to ..."; add your own in `~/.local/share/orca/telegram_access_labels.json` (`{signature: label}`).
 
 | Key | Action |
