@@ -98,6 +98,48 @@ def neighbor_name(node) -> str:
     return best
 
 
+# Buttons that identify Telegram's main-menu drawer.  Matched by name, so only
+# English Telegram is recognized; other languages fall through to the fallback.
+DRAWER_MARKERS = {"My Profile", "New Group", "Saved Messages"}
+DRAWER_LABELS = ("Profile picture", "Account, show or hide other accounts")
+
+
+def _contains_marker(node, depth: int = 6) -> bool:
+    if depth <= 0:
+        return False
+    for index in range(_safe(node.get_child_count, 0)):
+        child = _safe(lambda i=index: node.get_child_at_index(i), None)
+        if child is None:
+            continue
+        if _safe(child.get_name) in DRAWER_MARKERS or _contains_marker(child, depth - 1):
+            return True
+    return False
+
+
+def drawer_label(node) -> str:
+    """Label for the two unnamed buttons at the top of the main-menu drawer.
+
+    The first is the round profile picture, the second the wide header row
+    whose arrow shows or hides the other accounts (verified live: it reveals
+    "Add Account").
+    """
+
+    if _safe(node.get_role_name) != "button":
+        return ""
+    parent = _safe(node.get_parent, None)
+    if parent is None or not _contains_marker(parent):
+        return ""
+    own = _safe(node.get_index_in_parent, -1)
+    unnamed = []
+    for index in range(_safe(parent.get_child_count, 0)):
+        child = _safe(lambda i=index: parent.get_child_at_index(i), None)
+        if child is not None and _safe(child.get_role_name) == "button" and not _safe(child.get_name).strip():
+            unnamed.append(_safe(child.get_index_in_parent, -2))
+    if own in unnamed and unnamed.index(own) < len(DRAWER_LABELS):
+        return DRAWER_LABELS[unnamed.index(own)]
+    return ""
+
+
 def infer_label(node, user_labels: dict[str, str] | None = None) -> tuple[str, str]:
     """Returns (label, source) for an unnamed control.
 
@@ -109,6 +151,9 @@ def infer_label(node, user_labels: dict[str, str] | None = None) -> tuple[str, s
     table = load_user_labels() if user_labels is None else user_labels
     if sig in table:
         return table[sig], "user"
+    known = drawer_label(node)
+    if known:
+        return known, "builtin"
     description = _safe(node.get_description).strip()
     if description:
         return description, "description"

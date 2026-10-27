@@ -128,6 +128,19 @@ class Labels(unittest.TestCase):
         self.assertEqual(labels.infer_label(Node("button", children=[Node("label", "Send")]), {})[0], "Send")
         self.assertEqual(labels.infer_label(Node("button", description="Attach"), {})[0], "Attach")
 
+    def test_main_menu_drawer(self):
+        pic, header = Node("button"), Node("button")
+        premium = Node("button", "Telegram Premium")
+        rows = Node("filler", children=[Node("button", "My Profile"), Node("button", "New Group")])
+        drawer = Node("filler", children=[pic, header, Node("label", "Set Emoji Status"), premium,
+                                          Node("filler", children=[rows])])
+        self.assertEqual(labels.infer_label(pic, {}), ("Profile picture", "builtin"))
+        self.assertEqual(labels.infer_label(header, {})[0], "Account, show or hide other accounts")
+        # Not in the drawer: unchanged fallback.
+        other = Node("button")
+        Node("filler", children=[Node("text", "Search"), other])
+        self.assertEqual(labels.infer_label(other, {})[1], "fallback")
+
     def test_no_context(self):
         self.assertEqual(labels.infer_label(Node("button"), {})[0], "Unlabeled")
 
