@@ -15,7 +15,7 @@ gi.require_version("Atspi", "2.0")
 # pylint: disable=wrong-import-position
 from gi.repository import Atspi, GLib
 
-from orca import debug, keybindings
+from orca import debug, keybindings, object_properties
 from orca.command import Command, KeyboardCommand
 from orca.extension import Extension, ExtensionPreference, SpeechOutputResult
 
@@ -197,6 +197,10 @@ class TelegramAccess(Extension):
         text = getattr(output, "text", "")
         if obj is None or not isinstance(text, str) or not text:
             return None
+        if self._get(SETTING_CLEAN, True) and object_properties.STATE_READ_ONLY_SPEECH in text:
+            result = self._wrapper_result(obj, text)
+            if result is not None:
+                return result
         wants_labels = self._get(SETTING_LABELS, True) and text.strip().lower() in labels.GENERIC_BUTTON_TEXT
         wants_clean = self._get(SETTING_CLEAN, True) and (
             messages.has_invisible(text) or "Received at" in text or "Sent at" in text
@@ -210,6 +214,46 @@ class TelegramAccess(Extension):
         except Exception as error:  # pylint: disable=broad-exception-caught
             _log("speech hook failed:", error)
             return None
+
+    def _wrapper_result(self, obj, text):
+        """Drops the "read only" announcement of Telegram's text-field wrapper.
+
+        Every Telegram text field is a non-editable ``text`` node with the same
+        name wrapped around the real editable one, so focusing it makes Orca
+        say "<name> read only text" before the real "<name> text".
+        """
+
+        try:
+            if obj.get_role_name() != "text" or not _is_telegram(obj):
+                return None
+            name = (obj.get_name() or "").strip()
+            if not name or name not in text:
+                return None
+            if not self._is_text_field_wrapper(obj):
+                return None
+            rest = text.split(object_properties.STATE_READ_ONLY_SPEECH, 1)[1]
+            again = rest.find(name)
+            if again >= 0:
+                return SpeechOutputResult.replace(rest[again:])
+            if len(rest.strip(" ,.")) <= 20:
+                return SpeechOutputResult.consume_output()
+        except Exception as error:  # pylint: disable=broad-exception-caught
+            _log("wrapper check failed:", error)
+        return None
+
+    @staticmethod
+    def _is_text_field_wrapper(obj) -> bool:
+        """True for the editable field or the wrapper around it (same name, both text)."""
+
+        name = obj.get_name()
+        parent = obj.get_parent()
+        if parent is not None and parent.get_role_name() == "text" and parent.get_name() == name:
+            return True  # obj is the inner field
+        for index in range(obj.get_child_count()):
+            child = obj.get_child_at_index(index)
+            if child is not None and child.get_role_name() == "text" and child.get_name() == name:
+                return True  # obj is the wrapper
+        return False
 
     def _label_result(self, obj, text):
         if obj.get_role_name() not in BUTTON_ROLES or (obj.get_name() or "").strip():
