@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Devin Prater
 """Parsing and speech formatting for Telegram Desktop's accessible message names.
 
 Telegram exposes each chat message as a list item whose name is several lines:

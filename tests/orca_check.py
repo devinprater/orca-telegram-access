@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Devin Prater
 import sys, types
 from orca import extension_loader
 ld = extension_loader.get_loader()

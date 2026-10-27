@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Devin Prater
 """Telegram Desktop accessibility for Orca.
 
 Speaks incoming messages in the open chat, cleans up how messages are read,

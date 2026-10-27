@@ -39,3 +39,7 @@ python3 -I tests/test_logic.py      # pure logic, no Orca needed
 ```
 
 `tests/orca_check.py` loads the extension with Orca's real extension loader against a fake accessibility tree; run it with a Python that can import Orca's modules.
+
+## License
+
+Copyright 2026 Devin Prater. Licensed under the [GNU General Public License v3.0 or later](LICENSE): you may use, study and modify it, and if you distribute it or a modified version you must make the source available under the same license.

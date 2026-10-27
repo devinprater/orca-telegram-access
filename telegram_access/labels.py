@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Devin Prater
 """Finding labels for Telegram controls that have no accessible name.
 
 Works on any object with the Atspi.Accessible methods used below, so tests can
