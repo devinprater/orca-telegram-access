@@ -141,6 +141,23 @@ class Labels(unittest.TestCase):
         Node("filler", children=[Node("text", "Search"), other])
         self.assertEqual(labels.infer_label(other, {})[1], "fallback")
 
+    def test_search_icon_in_emoji_panel(self):
+        class Ext:
+            def __init__(self, x): self.x = x
+
+        def at(node, x):
+            node.get_extents = lambda _coord, x=x: Ext(x)
+            return node
+
+        icon = at(Node("button"), 1014)
+        field = at(Node("text", "Search"), 1047)
+        clear = at(Node("button"), 1300)
+        Node("filler", children=[Node("filler"), field, Node("filler"),
+                                 Node("filler", children=[icon]), Node("filler", children=[clear])])
+        self.assertEqual(labels.infer_label(icon, {}), ("Search icon", "builtin"))
+        # Right of the field, or without geometry: not claimed.
+        self.assertEqual(labels.infer_label(clear, {})[1], "fallback")
+
     def test_no_context(self):
         self.assertEqual(labels.infer_label(Node("button"), {})[0], "Unlabeled")
 

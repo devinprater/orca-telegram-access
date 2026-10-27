@@ -140,6 +140,52 @@ def drawer_label(node) -> str:
     return ""
 
 
+def _left_edge(node):
+    coord = None
+    try:
+        import gi  # pylint: disable=import-outside-toplevel
+
+        gi.require_version("Atspi", "2.0")
+        from gi.repository import Atspi  # pylint: disable=import-outside-toplevel
+
+        coord = Atspi.CoordType.SCREEN
+    except (ImportError, ValueError):
+        pass  # Only happens outside Orca (unit tests with fake nodes).
+    try:
+        return node.get_extents(coord).x
+    except Exception:  # pylint: disable=broad-exception-caught
+        return None
+
+
+def search_icon_label(node) -> str:
+    """Label for the magnifier button at the left of a Search field.
+
+    In the emoji/sticker/GIF panel it sits in a one-child wrapper next to a
+    text field named Search (verified live: clicking it focuses that field).
+    Matched by being left of the field, so the buttons to its right are not
+    mislabeled.
+    """
+
+    if _safe(node.get_role_name) != "button":
+        return ""
+    wrapper = _safe(node.get_parent, None)
+    row = _safe(wrapper.get_parent, None) if wrapper is not None else None
+    if row is None or _safe(wrapper.get_child_count, 0) != 1:
+        return ""
+    own_x = _left_edge(node)
+    for index in range(_safe(row.get_child_count, 0)):
+        sibling = _safe(lambda i=index: row.get_child_at_index(i), None)
+        if (
+            sibling is not None
+            and _safe(sibling.get_role_name) == "text"
+            and _safe(sibling.get_name) == "Search"
+        ):
+            field_x = _left_edge(sibling)
+            if own_x is not None and field_x is not None and own_x < field_x:
+                return "Search icon"
+    return ""
+
+
 def infer_label(node, user_labels: dict[str, str] | None = None) -> tuple[str, str]:
     """Returns (label, source) for an unnamed control.
 
@@ -152,6 +198,9 @@ def infer_label(node, user_labels: dict[str, str] | None = None) -> tuple[str, s
     if sig in table:
         return table[sig], "user"
     known = drawer_label(node)
+    if known:
+        return known, "builtin"
+    known = search_icon_label(node)
     if known:
         return known, "builtin"
     description = _safe(node.get_description).strip()
